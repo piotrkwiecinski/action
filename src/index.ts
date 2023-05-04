@@ -1,9 +1,6 @@
-import core from "@actions/core";
+import * as core from "@actions/core";
 import { Inputs } from "./constants.js";
-
-const $ = require("zx").$;
-const fs = require("zx").fs;
-const cd = require("zx").cd;
+import { $, fs, cd } from "zx";
 
 async function main(): Promise<void> {
     try {

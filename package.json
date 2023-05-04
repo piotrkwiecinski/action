@@ -1,6 +1,7 @@
 {
   "private": true,
-  "main": "dist/index.js",
+  "main": "lib/index.js",
+  "type": "module",
   "dependencies": {
     "@actions/core": "^1.10.0",
     "zx": "^7.2.1"
@@ -28,8 +29,8 @@
     "node": ">=16"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "package": "ncc build -o dist src/index.ts",
+    "build": "tsc",
+    "package": "ncc build",
     "ncc": "ncc",
     "test": "jest --coverage",
     "lint": "eslint **/*.ts --cache",
