@@ -36,6 +36,6 @@
     "lint": "eslint **/*.ts --cache",
     "format": "prettier --write **/*.ts",
     "format-check": "prettier --check **/*.ts",
-    "all": "npm run build && npm run format-check && npm run package && npm test"
+    "all": "npm run build && npm run format-check && npm run package && npm run test"
   }
 }
