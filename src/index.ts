@@ -112,7 +112,7 @@ async function dep(): Promise<void> {
                 break;
             }
         }
-        if (typeof url === 'undefined') {
+        if (typeof url === "undefined") {
             throw new Error(
                 `The version "${version}"" does not exist in the "https://deployer.org/manifest.json" file."`
             );

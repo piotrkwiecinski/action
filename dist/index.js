@@ -25446,8 +25446,8 @@ function dep() {
                     break;
                 }
             }
-            if (url === null) {
-                console.error(`The version "${version}"" does not exist in the "https://deployer.org/manifest.json" file."`);
+            if (typeof url === 'undefined') {
+                throw new Error(`The version "${version}"" does not exist in the "https://deployer.org/manifest.json" file."`);
             }
             else {
                 console.log(`Downloading "${url}".`);
@@ -25469,13 +25469,13 @@ function dep() {
             }
         }
         catch (e) {
-            console.error("Invalid JSON in options");
+            throw new Error("Invalid JSON in options");
         }
         try {
             yield core_$ `php ${dep} ${cmd} --no-interaction ${ansi} ${verbosity} ${options}`;
         }
         catch (err) {
-            core.setFailed(`Failed: dep ${cmd}`);
+            throw new Error(`Failed: dep ${cmd}`);
         }
     });
 }
