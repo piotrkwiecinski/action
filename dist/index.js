@@ -25446,7 +25446,7 @@ function dep() {
                     break;
                 }
             }
-            if (typeof url === 'undefined') {
+            if (typeof url === "undefined") {
                 throw new Error(`The version "${version}"" does not exist in the "https://deployer.org/manifest.json" file."`);
             }
             else {
@@ -25463,13 +25463,18 @@ function dep() {
             required: false
         });
         const options = [];
-        try {
-            for (const [key, value] of Object.entries(JSON.parse(core.getInput(Inputs.DeployerOptions, { required: false })))) {
-                options.push("-o", `${key}=${value}`);
+        const optionInput = core.getInput(Inputs.DeployerOptions, {
+            required: false
+        });
+        if (optionInput !== "") {
+            try {
+                for (const [key, value] of Object.entries(JSON.parse(optionInput))) {
+                    options.push("-o", `${key}=${value}`);
+                }
             }
-        }
-        catch (e) {
-            throw new Error("Invalid JSON in options");
+            catch (e) {
+                throw new Error("Invalid JSON in options");
+            }
         }
         try {
             yield core_$ `php ${dep} ${cmd} --no-interaction ${ansi} ${verbosity} ${options}`;

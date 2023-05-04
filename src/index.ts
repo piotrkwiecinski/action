@@ -133,16 +133,20 @@ async function dep(): Promise<void> {
         required: false
     });
     const options: string[] = [];
-    try {
-        for (const [key, value] of Object.entries(
-            JSON.parse(
-                core.getInput(Inputs.DeployerOptions, { required: false })
-            )
-        )) {
-            options.push("-o", `${key}=${value}`);
+    const optionInput = core.getInput(Inputs.DeployerOptions, {
+        required: false
+    });
+
+    if (optionInput !== "") {
+        try {
+            for (const [key, value] of Object.entries(
+                JSON.parse(optionInput)
+            )) {
+                options.push("-o", `${key}=${value}`);
+            }
+        } catch (e) {
+            throw new Error("Invalid JSON in options");
         }
-    } catch (e) {
-        throw new Error("Invalid JSON in options");
     }
 
     try {
