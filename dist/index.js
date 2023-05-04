@@ -23246,20 +23246,6 @@ __nccwpck_require__.d(globby_namespaceObject, {
 
 // EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
 var core = __nccwpck_require__(2186);
-;// CONCATENATED MODULE: ./lib/constants.js
-var Inputs;
-(function (Inputs) {
-    Inputs["DeployerVersion"] = "deployer-version";
-    Inputs["DeployerBinary"] = "deployer-binary";
-    Inputs["DeployerCommand"] = "dep";
-    Inputs["DeployerOptions"] = "options";
-    Inputs["DeployerVerbosity"] = "verbosity";
-    Inputs["SshSkipSetup"] = "skip-ssh-setup";
-    Inputs["SshConfig"] = "ssh-config";
-    Inputs["SshKnownHosts"] = "known-hosts";
-    Inputs["SshPrivateKey"] = "private-key";
-})(Inputs || (Inputs = {}));
-
 ;// CONCATENATED MODULE: external "node:assert"
 const external_node_assert_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:assert");
 ;// CONCATENATED MODULE: external "node:child_process"
@@ -25336,6 +25322,20 @@ function nothrow(promise) {
 function quiet(promise) {
     return promise.quiet();
 }
+
+;// CONCATENATED MODULE: ./lib/constants.js
+var Inputs;
+(function (Inputs) {
+    Inputs["DeployerVersion"] = "deployer-version";
+    Inputs["DeployerBinary"] = "deployer-binary";
+    Inputs["DeployerCommand"] = "dep";
+    Inputs["DeployerOptions"] = "options";
+    Inputs["DeployerVerbosity"] = "verbosity";
+    Inputs["SshSkipSetup"] = "skip-ssh-setup";
+    Inputs["SshConfig"] = "ssh-config";
+    Inputs["SshKnownHosts"] = "known-hosts";
+    Inputs["SshPrivateKey"] = "private-key";
+})(Inputs || (Inputs = {}));
 
 ;// CONCATENATED MODULE: ./lib/index.js
 var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {

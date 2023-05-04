@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
+import { $, cd, fs } from "zx";
+
 import { Inputs } from "./constants.js";
-import { $, fs, cd } from "zx";
 
 async function main(): Promise<void> {
     try {
