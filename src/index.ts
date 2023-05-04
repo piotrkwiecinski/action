@@ -112,8 +112,8 @@ async function dep(): Promise<void> {
                 break;
             }
         }
-        if (url === null) {
-            console.error(
+        if (typeof url === 'undefined') {
+            throw new Error(
                 `The version "${version}"" does not exist in the "https://deployer.org/manifest.json" file."`
             );
         } else {
@@ -142,13 +142,13 @@ async function dep(): Promise<void> {
             options.push("-o", `${key}=${value}`);
         }
     } catch (e) {
-        console.error("Invalid JSON in options");
+        throw new Error("Invalid JSON in options");
     }
 
     try {
         await $`php ${dep} ${cmd} --no-interaction ${ansi} ${verbosity} ${options}`;
     } catch (err) {
-        core.setFailed(`Failed: dep ${cmd}`);
+        throw new Error(`Failed: dep ${cmd}`);
     }
 }
 
