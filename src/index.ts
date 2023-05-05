@@ -142,7 +142,10 @@ async function dep(): Promise<void> {
             );
         } else {
             console.log(`Downloading "${url}".`);
-            dep = await tc.downloadTool(url, joinPath(basePath));
+            dep = await tc.downloadTool(
+                url,
+                joinPath(basePath, "deployer.phar")
+            );
         }
 
         await exec.exec("chmod", ["+x", "deployer.phar"], {

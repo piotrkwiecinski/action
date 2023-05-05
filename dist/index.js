@@ -205,7 +205,7 @@ function dep() {
             }
             else {
                 console.log(`Downloading "${url}".`);
-                dep = yield tc.downloadTool(url, (0, node_path_1.join)(basePath));
+                dep = yield tc.downloadTool(url, (0, node_path_1.join)(basePath, "deployer.phar"));
             }
             yield exec.exec("chmod", ["+x", "deployer.phar"], {
                 failOnStdErr: true,
