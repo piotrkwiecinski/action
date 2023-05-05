@@ -160,7 +160,7 @@ function ssh() {
 function dep() {
     var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
-        let dep = core.getInput(constants_js_1.Inputs.DeployerBinary, { required: true });
+        let dep = core.getInput(constants_js_1.Inputs.DeployerBinary);
         const subDirectory = core.getInput(constants_js_1.Inputs.SubDirectory, {
             trimWhitespace: true
         });

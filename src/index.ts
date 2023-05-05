@@ -74,7 +74,7 @@ async function ssh(): Promise<void> {
 }
 
 async function dep(): Promise<void> {
-    let dep = core.getInput(Inputs.DeployerBinary, { required: true });
+    let dep = core.getInput(Inputs.DeployerBinary);
     const subDirectory = core.getInput(Inputs.SubDirectory, {
         trimWhitespace: true
     });
