@@ -5,8 +5,6 @@ import { HttpClient } from "@actions/http-client";
 import * as tc from "@actions/tool-cache";
 import { join as joinPath } from "path";
 
-const packageName = "deployer/deployer";
-
 interface Options {
     [key: string]: string;
 }
@@ -26,6 +24,23 @@ interface DeployerOptions extends BaseOptions {
     cwd: string;
     binaryPath: string;
     version: string;
+}
+
+export async function runDeployer({ cwd, ...options }: DeployerOptions) {
+    const binary = await locateDeployerBinary({
+        binaryPath: options.binaryPath,
+        version: options.version,
+        cwd
+    });
+    const command = getCommand({ binary, ...options });
+    try {
+        await exec.exec("php", command, {
+            failOnStdErr: true,
+            cwd: cwd
+        });
+    } catch (err) {
+        throw new Error(`Failed: dep ${command.join(" ")}`);
+    }
 }
 
 function getCommand(options: CommandOptions): string[] {
@@ -105,20 +120,12 @@ async function locateDeployerBinary({
         }
     }
 
-    if (version === "" && existsSync(joinPath(cwd, "composer.lock"))) {
-        const lock = JSON.parse(
-            readFileSync(joinPath(cwd, "composer.lock"), "utf8")
-        );
-        const findPackage = (lockFile: object, section: string) =>
-            lockFile[section]
-                ? lockFile[section]?.find(p => p.name === packageName)
-                : undefined;
-        version = findPackage(lock, "packages")?.version;
-
-        if (version === "" || typeof version === "undefined") {
-            version = findPackage(lock, "packages-dev")?.version;
-        }
+    const composerPath = joinPath(cwd, "composer.lock");
+    if (version === "" && existsSync(composerPath)) {
+        const lock = JSON.parse(readFileSync(composerPath, "utf8"));
+        version = findDeployerVersionInComposerLock(lock);
     }
+
     if (version === "" || typeof version === "undefined") {
         throw new Error(
             "Deployer binary not found. Please specify deployer-binary or deployer-version."
@@ -138,19 +145,18 @@ async function locateDeployerBinary({
     return dep;
 }
 
-export async function run({ cwd, ...options }: DeployerOptions) {
-    const binary = await locateDeployerBinary({
-        binaryPath: options.binaryPath,
-        version: options.version,
-        cwd
-    });
-    const command = getCommand({ binary, ...options });
-    try {
-        await exec.exec("php", command, {
-            failOnStdErr: true,
-            cwd: cwd
-        });
-    } catch (err) {
-        throw new Error(`Failed: dep ${command.join(" ")}`);
+function findDeployerVersionInComposerLock(lock: object) {
+    let version;
+    const packageName = "deployer/deployer";
+    const findPackage = (lockFile: object, section: string) =>
+        lockFile[section]
+            ? lockFile[section]?.find(p => p.name === packageName)
+            : undefined;
+    version = findPackage(lock, "packages")?.version;
+
+    if (version === "" || typeof version === "undefined") {
+        version = findPackage(lock, "packages-dev")?.version;
     }
+
+    return version;
 }

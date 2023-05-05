@@ -75,13 +75,33 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.run = void 0;
+exports.runDeployer = void 0;
 const node_fs_1 = __nccwpck_require__(7561);
 const exec = __importStar(__nccwpck_require__(1514));
 const http_client_1 = __nccwpck_require__(6255);
 const tc = __importStar(__nccwpck_require__(7784));
 const path_1 = __nccwpck_require__(1017);
-const packageName = "deployer/deployer";
+function runDeployer(_a) {
+    var { cwd } = _a, options = __rest(_a, ["cwd"]);
+    return __awaiter(this, void 0, void 0, function* () {
+        const binary = yield locateDeployerBinary({
+            binaryPath: options.binaryPath,
+            version: options.version,
+            cwd
+        });
+        const command = getCommand(Object.assign({ binary }, options));
+        try {
+            yield exec.exec("php", command, {
+                failOnStdErr: true,
+                cwd: cwd
+            });
+        }
+        catch (err) {
+            throw new Error(`Failed: dep ${command.join(" ")}`);
+        }
+    });
+}
+exports.runDeployer = runDeployer;
 function getCommand(options) {
     const depOptions = Object.entries(options.options).flatMap(([key, value]) => ["-o", `${key}=>${value}`]);
     return [
@@ -113,7 +133,6 @@ function downloadBinary(version, dest) {
     });
 }
 function locateDeployerBinary({ binaryPath, version, cwd }) {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         if (binaryPath !== "") {
             if ((0, node_fs_1.existsSync)(binaryPath)) {
@@ -133,18 +152,10 @@ function locateDeployerBinary({ binaryPath, version, cwd }) {
                 return c;
             }
         }
-        if (version === "" && (0, node_fs_1.existsSync)((0, path_1.join)(cwd, "composer.lock"))) {
-            const lock = JSON.parse((0, node_fs_1.readFileSync)((0, path_1.join)(cwd, "composer.lock"), "utf8"));
-            const findPackage = (lockFile, section) => {
-                var _a;
-                return lockFile[section]
-                    ? (_a = lockFile[section]) === null || _a === void 0 ? void 0 : _a.find(p => p.name === packageName)
-                    : undefined;
-            };
-            version = (_a = findPackage(lock, "packages")) === null || _a === void 0 ? void 0 : _a.version;
-            if (version === "" || typeof version === "undefined") {
-                version = (_b = findPackage(lock, "packages-dev")) === null || _b === void 0 ? void 0 : _b.version;
-            }
+        const composerPath = (0, path_1.join)(cwd, "composer.lock");
+        if (version === "" && (0, node_fs_1.existsSync)(composerPath)) {
+            const lock = JSON.parse((0, node_fs_1.readFileSync)(composerPath, "utf8"));
+            version = findDeployerVersionInComposerLock(lock);
         }
         if (version === "" || typeof version === "undefined") {
             throw new Error("Deployer binary not found. Please specify deployer-binary or deployer-version.");
@@ -157,27 +168,22 @@ function locateDeployerBinary({ binaryPath, version, cwd }) {
         return dep;
     });
 }
-function run(_a) {
-    var { cwd } = _a, options = __rest(_a, ["cwd"]);
-    return __awaiter(this, void 0, void 0, function* () {
-        const binary = yield locateDeployerBinary({
-            binaryPath: options.binaryPath,
-            version: options.version,
-            cwd
-        });
-        const command = getCommand(Object.assign({ binary }, options));
-        try {
-            yield exec.exec("php", command, {
-                failOnStdErr: true,
-                cwd: cwd
-            });
-        }
-        catch (err) {
-            throw new Error(`Failed: dep ${command.join(" ")}`);
-        }
-    });
+function findDeployerVersionInComposerLock(lock) {
+    var _a, _b;
+    let version;
+    const packageName = "deployer/deployer";
+    const findPackage = (lockFile, section) => {
+        var _a;
+        return lockFile[section]
+            ? (_a = lockFile[section]) === null || _a === void 0 ? void 0 : _a.find(p => p.name === packageName)
+            : undefined;
+    };
+    version = (_a = findPackage(lock, "packages")) === null || _a === void 0 ? void 0 : _a.version;
+    if (version === "" || typeof version === "undefined") {
+        version = (_b = findPackage(lock, "packages-dev")) === null || _b === void 0 ? void 0 : _b.version;
+    }
+    return version;
 }
-exports.run = run;
 
 
 /***/ }),
@@ -229,8 +235,22 @@ const deployer_js_1 = __nccwpck_require__(262);
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            yield ssh();
-            yield dep();
+            if (!core.getBooleanInput(constants_js_1.Inputs.SshSkipSetup)) {
+                yield ssh();
+            }
+            yield (0, deployer_js_1.runDeployer)({
+                binaryPath: core.getInput(constants_js_1.Inputs.DeployerBinary),
+                version: core.getInput(constants_js_1.Inputs.DeployerVersion),
+                command: core
+                    .getInput(constants_js_1.Inputs.DeployerCommand, { required: true })
+                    .split(" "),
+                ansiOutput: core.getBooleanInput(constants_js_1.Inputs.DeployerAnsiOutput),
+                verbosity: core.getInput(constants_js_1.Inputs.DeployerVerbosity),
+                options: parseOptions(core.getInput(constants_js_1.Inputs.DeployerOptions)),
+                cwd: resolveCwd(core.getInput(constants_js_1.Inputs.SubDirectory, {
+                    trimWhitespace: true
+                }))
+            });
         }
         catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -238,11 +258,20 @@ function main() {
         }
     });
 }
+const parseOptions = (input) => {
+    if (input === "") {
+        return {};
+    }
+    try {
+        return JSON.parse(input);
+    }
+    catch (e) {
+        throw new Error("Invalid JSON in options");
+    }
+};
+const resolveCwd = (path) => (0, node_path_1.resolve)(path === "" ? "." : path);
 function ssh() {
     return __awaiter(this, void 0, void 0, function* () {
-        if (core.getBooleanInput(constants_js_1.Inputs.SshSkipSetup)) {
-            return;
-        }
         const sshHomeDir = `${process.env["HOME"]}/.ssh`;
         if (!(0, node_fs_1.existsSync)(sshHomeDir)) {
             (0, node_fs_1.mkdirSync)(sshHomeDir);
@@ -270,36 +299,6 @@ function ssh() {
         if (sshConfig !== "") {
             (0, node_fs_1.writeFileSync)(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
         }
-    });
-}
-function dep() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const subDirectory = core.getInput(constants_js_1.Inputs.SubDirectory, {
-            trimWhitespace: true
-        });
-        const cwd = (0, node_path_1.resolve)(subDirectory === "" ? "." : subDirectory);
-        const parseOptions = (input) => {
-            if (input === "") {
-                return {};
-            }
-            try {
-                return JSON.parse(input);
-            }
-            catch (e) {
-                throw new Error("Invalid JSON in options");
-            }
-        };
-        yield (0, deployer_js_1.run)({
-            binaryPath: core.getInput(constants_js_1.Inputs.DeployerBinary),
-            version: core.getInput(constants_js_1.Inputs.DeployerVersion),
-            command: core
-                .getInput(constants_js_1.Inputs.DeployerCommand, { required: true })
-                .split(" "),
-            ansiOutput: core.getBooleanInput(constants_js_1.Inputs.DeployerAnsiOutput),
-            verbosity: core.getInput(constants_js_1.Inputs.DeployerVerbosity),
-            options: parseOptions(core.getInput(constants_js_1.Inputs.DeployerOptions)),
-            cwd
-        });
     });
 }
 void main();

@@ -5,23 +5,49 @@ import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 
 import { Inputs } from "./constants.js";
-import { run } from "./deployer.js";
+import { runDeployer } from "./deployer.js";
 
 async function main(): Promise<void> {
     try {
-        await ssh();
-        await dep();
+        if (!core.getBooleanInput(Inputs.SshSkipSetup)) {
+            await ssh();
+        }
+
+        await runDeployer({
+            binaryPath: core.getInput(Inputs.DeployerBinary),
+            version: core.getInput(Inputs.DeployerVersion),
+            command: core
+                .getInput(Inputs.DeployerCommand, { required: true })
+                .split(" "),
+            ansiOutput: core.getBooleanInput(Inputs.DeployerAnsiOutput),
+            verbosity: core.getInput(Inputs.DeployerVerbosity),
+            options: parseOptions(core.getInput(Inputs.DeployerOptions)),
+            cwd: resolveCwd(
+                core.getInput(Inputs.SubDirectory, {
+                    trimWhitespace: true
+                })
+            )
+        });
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         core.setFailed(message);
     }
 }
 
-async function ssh(): Promise<void> {
-    if (core.getBooleanInput(Inputs.SshSkipSetup)) {
-        return;
+const parseOptions = (input: string) => {
+    if (input === "") {
+        return {};
     }
+    try {
+        return JSON.parse(input);
+    } catch (e) {
+        throw new Error("Invalid JSON in options");
+    }
+};
 
+const resolveCwd = (path: string) => resolvePath(path === "" ? "." : path);
+
+async function ssh(): Promise<void> {
     const sshHomeDir = `${process.env["HOME"]}/.ssh`;
 
     if (!existsSync(sshHomeDir)) {
@@ -53,37 +79,6 @@ async function ssh(): Promise<void> {
     if (sshConfig !== "") {
         writeFileSync(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
     }
-}
-
-async function dep(): Promise<void> {
-    const subDirectory = core.getInput(Inputs.SubDirectory, {
-        trimWhitespace: true
-    });
-
-    const cwd = resolvePath(subDirectory === "" ? "." : subDirectory);
-
-    const parseOptions = (input: string) => {
-        if (input === "") {
-            return {};
-        }
-        try {
-            return JSON.parse(input);
-        } catch (e) {
-            throw new Error("Invalid JSON in options");
-        }
-    };
-
-    await run({
-        binaryPath: core.getInput(Inputs.DeployerBinary),
-        version: core.getInput(Inputs.DeployerVersion),
-        command: core
-            .getInput(Inputs.DeployerCommand, { required: true })
-            .split(" "),
-        ansiOutput: core.getBooleanInput(Inputs.DeployerAnsiOutput),
-        verbosity: core.getInput(Inputs.DeployerVerbosity),
-        options: parseOptions(core.getInput(Inputs.DeployerOptions)),
-        cwd
-    });
 }
 
 void main();
