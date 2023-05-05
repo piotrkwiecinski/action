@@ -1,7 +1,26 @@
+import {
+    appendFileSync,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    writeFileSync
+} from "node:fs";
+import { join as joinPath, resolve as resolvePath } from "node:path";
+
 import * as core from "@actions/core";
-import { $, cd, fs } from "zx";
+import * as exec from "@actions/exec";
+import { HttpClient } from "@actions/http-client";
+import * as tc from "@actions/tool-cache";
 
 import { Inputs } from "./constants.js";
+import { Deployer } from "./deployer.js";
+
+interface DeployerManifestEntry {
+    name: string;
+    sha1: string;
+    url: string;
+    version: string;
+}
 
 async function main(): Promise<void> {
     try {
@@ -20,56 +39,56 @@ async function ssh(): Promise<void> {
 
     const sshHomeDir = `${process.env["HOME"]}/.ssh`;
 
-    if (!fs.existsSync(sshHomeDir)) {
-        fs.mkdirSync(sshHomeDir);
+    if (!existsSync(sshHomeDir)) {
+        mkdirSync(sshHomeDir);
     }
 
     const authSock = "/tmp/ssh-auth.sock";
-    await $`ssh-agent -a ${authSock}`;
+    await exec.exec("ssh-agent", ["-a", `${authSock}`]);
     core.exportVariable("SSH_AUTH_SOCK", authSock);
 
-    let privateKey = core.getInput(Inputs.SshPrivateKey, { required: false });
+    let privateKey = core.getInput(Inputs.SshPrivateKey);
     if (privateKey !== "") {
         privateKey = privateKey.replace("/\r/g", "").trim() + "\n";
-        const p = $`ssh-add -`;
-        p.stdin.write(privateKey);
-        p.stdin.end();
-        await p;
+        await exec.exec("ssh-add", ["-", privateKey]);
     }
 
-    const knownHosts = core.getInput(Inputs.SshKnownHosts, { required: false });
+    const knownHosts = core.getInput(Inputs.SshKnownHosts);
     if (knownHosts !== "") {
-        fs.appendFileSync(`${sshHomeDir}/known_hosts`, knownHosts);
-        fs.chmodSync(`${sshHomeDir}/known_hosts`, "600");
+        appendFileSync(`${sshHomeDir}/known_hosts`, knownHosts, {
+            mode: 0o600
+        });
+        // chmodSync(`${sshHomeDir}/known_hosts`, "600");
     } else {
-        fs.appendFileSync(`${sshHomeDir}/config`, `StrictHostKeyChecking no`);
-        fs.chmodSync(`${sshHomeDir}/config`, "600");
+        appendFileSync(`${sshHomeDir}/config`, `StrictHostKeyChecking no`, {
+            mode: 0o600
+        });
+        // chmodSync(`${sshHomeDir}/config`, "600");
     }
 
-    const sshConfig = core.getInput(Inputs.SshConfig, { required: false });
+    const sshConfig = core.getInput(Inputs.SshConfig);
     if (sshConfig !== "") {
-        fs.writeFileSync(`${sshHomeDir}/config`, sshConfig);
-        fs.chmodSync(`${sshHomeDir}/config`, "600");
+        writeFileSync(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
+        // chmodSync(`${sshHomeDir}/config`, "600");
     }
 }
 
 async function dep(): Promise<void> {
-    let dep = core.getInput(Inputs.DeployerBinary);
-    const subDirectory = core.getInput("sub-directory", {
+    let dep = core.getInput(Inputs.DeployerBinary, { required: true });
+    const subDirectory = core.getInput(Inputs.SubDirectory, {
         trimWhitespace: true
     });
 
-    if (subDirectory !== "") {
-        cd(subDirectory);
-    }
+    const basePath =
+        subDirectory !== "" ? resolvePath(subDirectory) : resolvePath(".");
 
     if (dep === "")
         for (const c of [
-            "vendor/bin/deployer.phar",
-            "vendor/bin/dep",
-            "deployer.phar"
+            joinPath(basePath, "vendor/bin/deployer.phar"),
+            joinPath(basePath, "vendor/bin/dep"),
+            joinPath(basePath, "deployer.phar")
         ]) {
-            if (fs.existsSync(c)) {
+            if (existsSync(c)) {
                 dep = c;
                 console.log(`Using "${c}".`);
                 break;
@@ -77,22 +96,28 @@ async function dep(): Promise<void> {
         }
 
     if (dep === "") {
-        let version = core.getInput(Inputs.DeployerVersion, {
-            required: false
-        });
-        if (version === "" && fs.existsSync("composer.lock")) {
-            const lock = JSON.parse(fs.readFileSync("composer.lock", "utf8"));
-            if (lock["packages"]) {
-                version = lock["packages"].find(
-                    p => p.name === "deployer/deployer"
-                )?.version;
-            }
-            if (
-                (version === "" || typeof version === "undefined") &&
-                lock["packages-dev"]
-            ) {
-                version = lock["packages-dev"].find(
-                    p => p.name === "deployer/deployer"
+        let version = core.getInput(Inputs.DeployerVersion);
+        if (version === "" && existsSync("composer.lock")) {
+            const lock = JSON.parse(readFileSync("composer.lock", "utf8"));
+            const findPackage = (
+                lockFile: object,
+                section: string,
+                packageName: string
+            ) =>
+                lockFile[section]
+                    ? lockFile[section]?.find(p => p.name === packageName)
+                    : undefined;
+            version = findPackage(
+                lock,
+                "packages",
+                Deployer.packageName
+            )?.version;
+
+            if (version === "" || typeof version === "undefined") {
+                version = findPackage(
+                    lock,
+                    "packages-dev",
+                    Deployer.packageName
                 )?.version;
             }
         }
@@ -102,58 +127,68 @@ async function dep(): Promise<void> {
             );
         }
         version = version.replace(/^v/, "");
-        const manifest = JSON.parse(
-            (await $`curl -L https://deployer.org/manifest.json`).stdout
+        const httpClient = new HttpClient();
+        const response = await httpClient.getJson<Array<DeployerManifestEntry>>(
+            "https://deployer.org/manifest.json"
         );
-        let url;
-        for (const asset of manifest) {
-            if (asset.version === version) {
-                url = asset.url;
-                break;
-            }
-        }
+        const asset = response?.result?.find(
+            asset => asset.version === version
+        );
+        const url = asset?.url;
+
         if (typeof url === "undefined") {
             throw new Error(
-                `The version "${version}"" does not exist in the "https://deployer.org/manifest.json" file."`
+                `The version "${version}"" does not exist in the "" file."`
             );
         } else {
             console.log(`Downloading "${url}".`);
-            await $`curl -LO ${url}`;
+            dep = await tc.downloadTool(url, joinPath(basePath));
         }
 
-        await $`sudo chmod +x deployer.phar`;
-        dep = "deployer.phar";
+        await exec.exec("chmod", ["+x", "deployer.phar"], {
+            failOnStdErr: true,
+            cwd: basePath
+        });
     }
 
-    const cmd = core
-        .getInput(Inputs.DeployerCommand, { required: true })
-        .split(" ");
-    const ansi = core.getBooleanInput("ansi") ? "--ansi" : "--no-ansi";
-    const verbosity = core.getInput(Inputs.DeployerVerbosity, {
-        required: false
-    });
-    const options: string[] = [];
-    const optionInput = core.getInput(Inputs.DeployerOptions, {
-        required: false
-    });
+    const parseOptions = (input: string) => {
+        if (input === "") {
+            return [];
+        }
 
-    if (optionInput !== "") {
         try {
-            for (const [key, value] of Object.entries(
-                JSON.parse(optionInput)
-            )) {
-                options.push("-o", `${key}=${value}`);
-            }
+            return Object.entries(JSON.parse(input)).flatMap(([key, value]) => [
+                "-o",
+                `${key}=>${value}`
+            ]);
         } catch (e) {
             throw new Error("Invalid JSON in options");
         }
-    }
+    };
+
+    const deployer = new Deployer({
+        binary: dep,
+        command: core
+            .getInput(Inputs.DeployerCommand, { required: true })
+            .split(" "),
+        cwd: basePath,
+        ansiOptions: core.getBooleanInput(Inputs.DeployerAnsiOutput),
+        verbosity: core.getInput(Inputs.DeployerVerbosity),
+        options: parseOptions(core.getInput(Inputs.DeployerOptions))
+    });
+
+    const command = deployer.getCommand();
 
     try {
-        await $`php ${dep} ${cmd} --no-interaction ${ansi} ${verbosity} ${options}`;
+        await exec.exec("php", command, {
+            failOnStdErr: true,
+            cwd: deployer.getCwd()
+        });
     } catch (err) {
-        throw new Error(`Failed: dep ${cmd}`);
+        throw new Error(`Failed: dep ${command.join(" ")}`);
     }
 }
 
-main();
+void main();
+
+export default main;

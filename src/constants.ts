@@ -4,8 +4,10 @@ export enum Inputs {
     DeployerCommand = "dep",
     DeployerOptions = "options",
     DeployerVerbosity = "verbosity",
+    DeployerAnsiOutput = "ansi",
     SshSkipSetup = "skip-ssh-setup",
     SshConfig = "ssh-config",
     SshKnownHosts = "known-hosts",
-    SshPrivateKey = "private-key"
+    SshPrivateKey = "private-key",
+    SubDirectory = "sub-directory"
 }
