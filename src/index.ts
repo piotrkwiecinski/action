@@ -97,8 +97,10 @@ async function dep(): Promise<void> {
 
     if (dep === "") {
         let version = core.getInput(Inputs.DeployerVersion);
-        if (version === "" && existsSync("composer.lock")) {
-            const lock = JSON.parse(readFileSync("composer.lock", "utf8"));
+        if (version === "" && existsSync(joinPath(basePath, "composer.lock"))) {
+            const lock = JSON.parse(
+                readFileSync(joinPath(basePath, "composer.lock"), "utf8")
+            );
             const findPackage = (
                 lockFile: object,
                 section: string,

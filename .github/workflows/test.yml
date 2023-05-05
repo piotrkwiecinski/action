@@ -15,7 +15,7 @@ jobs:
           npm install
       - run: |
           npm run all
-  test: # make sure the action works on a clean machine without building
+  test-download: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -23,3 +23,31 @@ jobs:
         with:
           dep: list
           deployer-version: "7.3.0"
+
+  test-binary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+      - name: Download `deployer.phar`
+        run: composer global require deployer/deployer:${{vars.DEPLOYER_VERSION}} --no-interaction --verbose --ansi
+      - name: Get composer global bin-dir path
+        id: composer-bin-dir
+        run: echo "path=$(composer global config bin-dir --absolute)" >> $GITHUB_OUTPUT
+      - uses: ./
+        with:
+          dep: list
+          deployer-binary: ${{ steps.composer-bin-dir.outputs.path }}/dep

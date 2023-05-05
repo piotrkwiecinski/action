@@ -179,8 +179,8 @@ function dep() {
             }
         if (dep === "") {
             let version = core.getInput(constants_js_1.Inputs.DeployerVersion);
-            if (version === "" && (0, node_fs_1.existsSync)("composer.lock")) {
-                const lock = JSON.parse((0, node_fs_1.readFileSync)("composer.lock", "utf8"));
+            if (version === "" && (0, node_fs_1.existsSync)((0, node_path_1.join)(basePath, "composer.lock"))) {
+                const lock = JSON.parse((0, node_fs_1.readFileSync)((0, node_path_1.join)(basePath, "composer.lock"), "utf8"));
                 const findPackage = (lockFile, section, packageName) => {
                     var _a;
                     return lockFile[section]
