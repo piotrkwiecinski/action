@@ -1,5 +1,4 @@
-// import * as core from "@actions/core";
-// import main from "../src/index";
+import { describe, expect, it } from "@jest/globals";
 
 describe("deployer", () => {
     it("should run", async () => {
