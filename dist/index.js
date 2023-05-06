@@ -226,18 +226,20 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const node_fs_1 = __nccwpck_require__(7561);
 const node_path_1 = __nccwpck_require__(9411);
 const core = __importStar(__nccwpck_require__(2186));
-const exec = __importStar(__nccwpck_require__(1514));
 const constants_js_1 = __nccwpck_require__(5105);
 const deployer_js_1 = __nccwpck_require__(262);
+const ssh_1 = __nccwpck_require__(18);
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            if (!core.getBooleanInput(constants_js_1.Inputs.SshSkipSetup)) {
-                yield ssh();
-            }
+            yield (0, ssh_1.setupSsh)({
+                privateKey: core.getInput(constants_js_1.Inputs.SshPrivateKey),
+                sshConfig: core.getInput(constants_js_1.Inputs.SshConfig),
+                skipSetup: core.getBooleanInput(constants_js_1.Inputs.SshSkipSetup),
+                knownHosts: core.getInput(constants_js_1.Inputs.SshKnownHosts)
+            });
             yield (0, deployer_js_1.runDeployer)({
                 binaryPath: core.getInput(constants_js_1.Inputs.DeployerBinary),
                 version: core.getInput(constants_js_1.Inputs.DeployerVersion),
@@ -270,38 +272,85 @@ const parseOptions = (input) => {
     }
 };
 const resolveCwd = (path) => (0, node_path_1.resolve)(path === "" ? "." : path);
-function ssh() {
+void main();
+
+
+/***/ }),
+
+/***/ 18:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.setupSsh = void 0;
+const node_fs_1 = __nccwpck_require__(7561);
+const core = __importStar(__nccwpck_require__(2186));
+const exec = __importStar(__nccwpck_require__(1514));
+function setupSsh({ privateKey, knownHosts, skipSetup, sshConfig }) {
     return __awaiter(this, void 0, void 0, function* () {
+        if (skipSetup) {
+            return;
+        }
         const sshHomeDir = `${process.env["HOME"]}/.ssh`;
         if (!(0, node_fs_1.existsSync)(sshHomeDir)) {
-            (0, node_fs_1.mkdirSync)(sshHomeDir);
+            (0, node_fs_1.mkdirSync)(sshHomeDir, { recursive: true });
         }
         const authSock = "/tmp/ssh-auth.sock";
         yield exec.exec("ssh-agent", ["-a", `${authSock}`]);
         core.exportVariable("SSH_AUTH_SOCK", authSock);
-        let privateKey = core.getInput(constants_js_1.Inputs.SshPrivateKey);
         if (privateKey !== "") {
             privateKey = privateKey.replace("/\r/g", "").trim() + "\n";
             yield exec.exec("ssh-add", ["-", privateKey]);
         }
-        const knownHosts = core.getInput(constants_js_1.Inputs.SshKnownHosts);
         if (knownHosts !== "") {
             (0, node_fs_1.appendFileSync)(`${sshHomeDir}/known_hosts`, knownHosts, {
                 mode: 0o600
             });
         }
         else {
-            (0, node_fs_1.appendFileSync)(`${sshHomeDir}/config`, `StrictHostKeyChecking no`, {
+            (0, node_fs_1.appendFileSync)(`${sshHomeDir}/config`, `StrictHostKeyChecking no\n`, {
                 mode: 0o600
             });
         }
-        const sshConfig = core.getInput(constants_js_1.Inputs.SshConfig);
         if (sshConfig !== "") {
             (0, node_fs_1.writeFileSync)(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
         }
     });
 }
-void main();
+exports.setupSsh = setupSsh;
 
 
 /***/ }),
