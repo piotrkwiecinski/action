@@ -67,7 +67,9 @@ interface DeployerManifestEntry {
 async function fetchDeployerVersionsFromManifest(): Promise<
     DeployerManifestEntry[] | null
 > {
-    const httpClient = new HttpClient();
+    const httpClient = new HttpClient("", [], {
+        allowRedirects: true
+    });
     const response = await httpClient.getJson<Array<DeployerManifestEntry>>(
         "https://deployer.org/manifest.json"
     );
@@ -81,7 +83,7 @@ async function downloadBinary(version: string, dest?: string): Promise<string> {
     const url = asset?.url;
     if (typeof url === "undefined") {
         throw new Error(
-            `The version "${version}"" does not exist in the "" file."`
+            `The version "${version}"does not exist in the "" file."`
         );
     }
 

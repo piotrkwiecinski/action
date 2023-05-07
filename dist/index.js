@@ -115,7 +115,9 @@ function getCommand(options) {
 }
 function fetchDeployerVersionsFromManifest() {
     return __awaiter(this, void 0, void 0, function* () {
-        const httpClient = new http_client_1.HttpClient();
+        const httpClient = new http_client_1.HttpClient("", [], {
+            allowRedirects: true
+        });
         const response = yield httpClient.getJson("https://deployer.org/manifest.json");
         return response.result;
     });
@@ -126,7 +128,7 @@ function downloadBinary(version, dest) {
         const asset = response === null || response === void 0 ? void 0 : response.find(e => e.version === version);
         const url = asset === null || asset === void 0 ? void 0 : asset.url;
         if (typeof url === "undefined") {
-            throw new Error(`The version "${version}"" does not exist in the "" file."`);
+            throw new Error(`The version "${version}"does not exist in the "" file."`);
         }
         console.log(`Downloading "${url}".`);
         return yield tc.downloadTool(url, dest);
