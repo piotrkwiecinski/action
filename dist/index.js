@@ -335,7 +335,7 @@ function setupSsh({ privateKey, knownHosts, skipSetup, sshConfig }) {
         core.exportVariable("SSH_AUTH_SOCK", authSock);
         if (privateKey !== "") {
             privateKey = privateKey.replace("/\r/g", "").trim() + "\n";
-            yield exec.exec("ssh-add", ["-", privateKey]);
+            yield exec.exec(`ssh-add <(echo "${privateKey}")`);
         }
         if (knownHosts !== "") {
             (0, node_fs_1.appendFileSync)(`${sshHomeDir}/known_hosts`, knownHosts, {
