@@ -22,6 +22,7 @@ jobs:
       - uses: ./
         with:
           dep: list
+          private-key: ${{ secrets.DEPLOYER_SSH_KEY }}
           deployer-version: "7.3.0"
 
   test-binary:
