@@ -68,7 +68,7 @@ describe("ssh setup", function () {
         });
         const execFunc = jest.spyOn(exec, "exec");
         await setupSsh(options);
-        expect(execFunc).toHaveBeenLastCalledWith('ssh-add <(echo "test\n")');
+        expect(execFunc).toHaveBeenLastCalledWith('echo "test\n" | ssh-add -');
     });
 
     it("should set strict host key check to no when known hosts are not provided", async () => {

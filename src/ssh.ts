@@ -32,7 +32,7 @@ export async function setupSsh({
 
     if (privateKey !== "") {
         privateKey = privateKey.replace("/\r/g", "").trim() + "\n";
-        await exec.exec(`ssh-add <(echo "${privateKey}")`);
+        await exec.exec(`echo "${privateKey}" | ssh-add -`);
     }
 
     if (knownHosts !== "") {
