@@ -1,9 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import * as exec from "@actions/exec";
 import { HttpClient } from "@actions/http-client";
 import * as tc from "@actions/tool-cache";
-import { join as joinPath } from "path";
 
 interface Options {
     [key: string]: string;
@@ -18,21 +18,21 @@ interface DeployerArguments {
 
 export async function run(
     binary: string,
-    options: DeployerArguments,
+    args: DeployerArguments,
     cwd: string
 ) {
-    const command = prepareCommand(options);
+    const commandArgs = prepareArguments(args);
     try {
-        await exec.exec("php", [binary, ...command], {
+        await exec.exec("php", [binary, ...commandArgs], {
             failOnStdErr: true,
             cwd: cwd
         });
     } catch (err) {
-        throw new Error(`Failed: dep ${command.join(" ")}`);
+        throw new Error(`Failed: dep ${binary} ${commandArgs.join(" ")}`);
     }
 }
 
-function prepareCommand(args: DeployerArguments): string[] {
+function prepareArguments(args: DeployerArguments): string[] {
     const depOptions = Object.entries(args.options).flatMap(([key, value]) => [
         "-o",
         `${key}=>${value}`
@@ -53,7 +53,7 @@ interface DeployerManifestEntry {
     version: string;
 }
 
-async function fetchDeployerVersionsFromManifest(): Promise<
+async function fetchVersionsFromManifest(): Promise<
     DeployerManifestEntry[] | null
 > {
     const httpClient = new HttpClient("", [], {
@@ -68,7 +68,7 @@ async function fetchDeployerVersionsFromManifest(): Promise<
 }
 
 async function downloadBinary(version: string, dest?: string): Promise<string> {
-    const response = await fetchDeployerVersionsFromManifest();
+    const response = await fetchVersionsFromManifest();
     const url = response?.find(e => e.version === version)?.url;
     if (typeof url === "undefined") {
         throw new Error(
@@ -93,7 +93,7 @@ export async function locateBinary({
     cwd
 }: DeployerBinaryLocatorOptions): Promise<string> {
     if (binaryPath !== "") {
-        if (existsSync(binaryPath)) {
+        if (fs.existsSync(binaryPath)) {
             return binaryPath;
         } else {
             throw new Error(`Deployer binary "${binaryPath}" does not exist.`);
@@ -104,16 +104,16 @@ export async function locateBinary({
         "vendor/bin/dep",
         "deployer.phar"
     ]
-        .map(b => joinPath(cwd, b))
-        .find(b => existsSync(b));
+        .map(b => path.join(cwd, b))
+        .find(b => fs.existsSync(b));
     if (localBinary) {
         console.log(`Using "${localBinary}".`);
         return localBinary;
     }
 
-    const composerPath = joinPath(cwd, "composer.lock");
-    if (version === "" && existsSync(composerPath)) {
-        const lock = JSON.parse(readFileSync(composerPath, "utf8"));
+    const composerPath = path.join(cwd, "composer.lock");
+    if (version === "" && fs.existsSync(composerPath)) {
+        const lock = JSON.parse(fs.readFileSync(composerPath, "utf8"));
         version = findDeployerVersionInComposerLock(lock) ?? "";
     }
 
@@ -123,7 +123,7 @@ export async function locateBinary({
         );
     }
 
-    const pharPath = joinPath(cwd, "deployer.phar");
+    const pharPath = path.join(cwd, "deployer.phar");
     const dep = await downloadBinary(version.replace(/^v/, ""), pharPath);
 
     await exec.exec("chmod", ["+x", pharPath], {

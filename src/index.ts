@@ -1,4 +1,4 @@
-import { resolve as resolvePath } from "node:path";
+import * as path from "node:path";
 
 import * as core from "@actions/core";
 
@@ -57,6 +57,7 @@ const parseOptions = (input: string) => {
     }
 };
 
-const resolveCwd = (path: string) => resolvePath(path === "" ? "." : path);
+const resolveCwd = (basePath: string) =>
+    path.resolve(basePath === "" ? "." : basePath);
 
 void main();

@@ -65,27 +65,27 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.locateBinary = exports.run = void 0;
-const node_fs_1 = __nccwpck_require__(7561);
+const fs = __importStar(__nccwpck_require__(7561));
+const path = __importStar(__nccwpck_require__(9411));
 const exec = __importStar(__nccwpck_require__(1514));
 const http_client_1 = __nccwpck_require__(6255);
 const tc = __importStar(__nccwpck_require__(7784));
-const path_1 = __nccwpck_require__(1017);
-function run(binary, options, cwd) {
+function run(binary, args, cwd) {
     return __awaiter(this, void 0, void 0, function* () {
-        const command = prepareCommand(options);
+        const commandArgs = prepareArguments(args);
         try {
-            yield exec.exec("php", [binary, ...command], {
+            yield exec.exec("php", [binary, ...commandArgs], {
                 failOnStdErr: true,
                 cwd: cwd
             });
         }
         catch (err) {
-            throw new Error(`Failed: dep ${command.join(" ")}`);
+            throw new Error(`Failed: dep ${binary} ${commandArgs.join(" ")}`);
         }
     });
 }
 exports.run = run;
-function prepareCommand(args) {
+function prepareArguments(args) {
     const depOptions = Object.entries(args.options).flatMap(([key, value]) => [
         "-o",
         `${key}=>${value}`
@@ -98,7 +98,7 @@ function prepareCommand(args) {
         ...depOptions
     ];
 }
-function fetchDeployerVersionsFromManifest() {
+function fetchVersionsFromManifest() {
     return __awaiter(this, void 0, void 0, function* () {
         const httpClient = new http_client_1.HttpClient("", [], {
             allowRedirects: true
@@ -110,7 +110,7 @@ function fetchDeployerVersionsFromManifest() {
 function downloadBinary(version, dest) {
     var _a;
     return __awaiter(this, void 0, void 0, function* () {
-        const response = yield fetchDeployerVersionsFromManifest();
+        const response = yield fetchVersionsFromManifest();
         const url = (_a = response === null || response === void 0 ? void 0 : response.find(e => e.version === version)) === null || _a === void 0 ? void 0 : _a.url;
         if (typeof url === "undefined") {
             throw new Error(`The version "${version}"does not exist in the "" file."`);
@@ -123,7 +123,7 @@ function locateBinary({ binaryPath, version, cwd }) {
     var _a;
     return __awaiter(this, void 0, void 0, function* () {
         if (binaryPath !== "") {
-            if ((0, node_fs_1.existsSync)(binaryPath)) {
+            if (fs.existsSync(binaryPath)) {
                 return binaryPath;
             }
             else {
@@ -135,21 +135,21 @@ function locateBinary({ binaryPath, version, cwd }) {
             "vendor/bin/dep",
             "deployer.phar"
         ]
-            .map(b => (0, path_1.join)(cwd, b))
-            .find(b => (0, node_fs_1.existsSync)(b));
+            .map(b => path.join(cwd, b))
+            .find(b => fs.existsSync(b));
         if (localBinary) {
             console.log(`Using "${localBinary}".`);
             return localBinary;
         }
-        const composerPath = (0, path_1.join)(cwd, "composer.lock");
-        if (version === "" && (0, node_fs_1.existsSync)(composerPath)) {
-            const lock = JSON.parse((0, node_fs_1.readFileSync)(composerPath, "utf8"));
+        const composerPath = path.join(cwd, "composer.lock");
+        if (version === "" && fs.existsSync(composerPath)) {
+            const lock = JSON.parse(fs.readFileSync(composerPath, "utf8"));
             version = (_a = findDeployerVersionInComposerLock(lock)) !== null && _a !== void 0 ? _a : "";
         }
         if (version === "") {
             throw new Error("Deployer binary not found. Please specify deployer-binary or deployer-version.");
         }
-        const pharPath = (0, path_1.join)(cwd, "deployer.phar");
+        const pharPath = path.join(cwd, "deployer.phar");
         const dep = yield downloadBinary(version.replace(/^v/, ""), pharPath);
         yield exec.exec("chmod", ["+x", pharPath], {
             failOnStdErr: true
@@ -204,7 +204,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const node_path_1 = __nccwpck_require__(9411);
+const path = __importStar(__nccwpck_require__(9411));
 const core = __importStar(__nccwpck_require__(2186));
 const constants_js_1 = __nccwpck_require__(5105);
 const deployer_js_1 = __nccwpck_require__(262);
@@ -253,7 +253,7 @@ const parseOptions = (input) => {
         throw new Error("Invalid JSON in options");
     }
 };
-const resolveCwd = (path) => (0, node_path_1.resolve)(path === "" ? "." : path);
+const resolveCwd = (basePath) => path.resolve(basePath === "" ? "." : basePath);
 void main();
 
 
@@ -298,14 +298,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setup = void 0;
-const node_fs_1 = __nccwpck_require__(7561);
+const fs = __importStar(__nccwpck_require__(7561));
 const core = __importStar(__nccwpck_require__(2186));
 const exec = __importStar(__nccwpck_require__(1514));
 function setup({ privateKey, knownHosts, sshConfig }) {
     return __awaiter(this, void 0, void 0, function* () {
         const sshHomeDir = `${process.env["HOME"]}/.ssh`;
-        if (!(0, node_fs_1.existsSync)(sshHomeDir)) {
-            (0, node_fs_1.mkdirSync)(sshHomeDir, { recursive: true });
+        if (!fs.existsSync(sshHomeDir)) {
+            fs.mkdirSync(sshHomeDir, { recursive: true });
         }
         const authSock = "/tmp/ssh-auth.sock";
         yield exec.exec("ssh-agent", ["-a", `${authSock}`]);
@@ -315,17 +315,17 @@ function setup({ privateKey, knownHosts, sshConfig }) {
             yield exec.exec(`echo "${privateKey}" | ssh-add -`);
         }
         if (knownHosts !== "") {
-            (0, node_fs_1.appendFileSync)(`${sshHomeDir}/known_hosts`, knownHosts, {
+            fs.appendFileSync(`${sshHomeDir}/known_hosts`, knownHosts, {
                 mode: 0o600
             });
         }
         else {
-            (0, node_fs_1.appendFileSync)(`${sshHomeDir}/config`, `StrictHostKeyChecking no\n`, {
+            fs.appendFileSync(`${sshHomeDir}/config`, `StrictHostKeyChecking no\n`, {
                 mode: 0o600
             });
         }
         if (sshConfig !== "") {
-            (0, node_fs_1.writeFileSync)(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
+            fs.writeFileSync(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
         }
     });
 }

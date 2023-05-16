@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import * as fs from "node:fs";
 
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
@@ -16,8 +16,8 @@ export async function setup({
 }: SshOptions): Promise<void> {
     const sshHomeDir = `${process.env["HOME"]}/.ssh`;
 
-    if (!existsSync(sshHomeDir)) {
-        mkdirSync(sshHomeDir, { recursive: true });
+    if (!fs.existsSync(sshHomeDir)) {
+        fs.mkdirSync(sshHomeDir, { recursive: true });
     }
 
     const authSock = "/tmp/ssh-auth.sock";
@@ -30,16 +30,20 @@ export async function setup({
     }
 
     if (knownHosts !== "") {
-        appendFileSync(`${sshHomeDir}/known_hosts`, knownHosts, {
+        fs.appendFileSync(`${sshHomeDir}/known_hosts`, knownHosts, {
             mode: 0o600
         });
     } else {
-        appendFileSync(`${sshHomeDir}/config`, `StrictHostKeyChecking no\n`, {
-            mode: 0o600
-        });
+        fs.appendFileSync(
+            `${sshHomeDir}/config`,
+            `StrictHostKeyChecking no\n`,
+            {
+                mode: 0o600
+            }
+        );
     }
 
     if (sshConfig !== "") {
-        writeFileSync(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
+        fs.writeFileSync(`${sshHomeDir}/config`, sshConfig, { mode: 0o600 });
     }
 }
