@@ -7,19 +7,13 @@ interface SshOptions {
     privateKey: string;
     knownHosts: string;
     sshConfig: string;
-    skipSetup: boolean;
 }
 
-export async function setupSsh({
+export async function setup({
     privateKey,
     knownHosts,
-    skipSetup,
     sshConfig
 }: SshOptions): Promise<void> {
-    if (skipSetup) {
-        return;
-    }
-
     const sshHomeDir = `${process.env["HOME"]}/.ssh`;
 
     if (!existsSync(sshHomeDir)) {

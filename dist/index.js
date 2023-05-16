@@ -63,35 +63,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.runDeployer = void 0;
+exports.locateBinary = exports.run = void 0;
 const node_fs_1 = __nccwpck_require__(7561);
 const exec = __importStar(__nccwpck_require__(1514));
 const http_client_1 = __nccwpck_require__(6255);
 const tc = __importStar(__nccwpck_require__(7784));
 const path_1 = __nccwpck_require__(1017);
-function runDeployer(_a) {
-    var { cwd } = _a, options = __rest(_a, ["cwd"]);
+function run(binary, options, cwd) {
     return __awaiter(this, void 0, void 0, function* () {
-        const binary = yield locateDeployerBinary({
-            binaryPath: options.binaryPath,
-            version: options.version,
-            cwd
-        });
-        const command = getCommand(Object.assign({ binary }, options));
+        const command = prepareCommand(options);
         try {
-            yield exec.exec("php", command, {
+            yield exec.exec("php", [binary, ...command], {
                 failOnStdErr: true,
                 cwd: cwd
             });
@@ -101,15 +84,17 @@ function runDeployer(_a) {
         }
     });
 }
-exports.runDeployer = runDeployer;
-function getCommand(options) {
-    const depOptions = Object.entries(options.options).flatMap(([key, value]) => ["-o", `${key}=>${value}`]);
+exports.run = run;
+function prepareCommand(args) {
+    const depOptions = Object.entries(args.options).flatMap(([key, value]) => [
+        "-o",
+        `${key}=>${value}`
+    ]);
     return [
-        options.binary,
-        ...options.command,
+        ...args.command,
         "--no-interaction",
-        options.ansiOutput ? "--ansi" : "--no-ansi",
-        options.verbosity,
+        args.ansiOutput ? "--ansi" : "--no-ansi",
+        args.verbosity,
         ...depOptions
     ];
 }
@@ -118,15 +103,15 @@ function fetchDeployerVersionsFromManifest() {
         const httpClient = new http_client_1.HttpClient("", [], {
             allowRedirects: true
         });
-        const response = yield httpClient.getJson("https://deployer.org/manifest.json");
-        return response.result;
+        const { result } = yield httpClient.getJson("https://deployer.org/manifest.json");
+        return result;
     });
 }
 function downloadBinary(version, dest) {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         const response = yield fetchDeployerVersionsFromManifest();
-        const asset = response === null || response === void 0 ? void 0 : response.find(e => e.version === version);
-        const url = asset === null || asset === void 0 ? void 0 : asset.url;
+        const url = (_a = response === null || response === void 0 ? void 0 : response.find(e => e.version === version)) === null || _a === void 0 ? void 0 : _a.url;
         if (typeof url === "undefined") {
             throw new Error(`The version "${version}"does not exist in the "" file."`);
         }
@@ -134,7 +119,8 @@ function downloadBinary(version, dest) {
         return yield tc.downloadTool(url, dest);
     });
 }
-function locateDeployerBinary({ binaryPath, version, cwd }) {
+function locateBinary({ binaryPath, version, cwd }) {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         if (binaryPath !== "") {
             if ((0, node_fs_1.existsSync)(binaryPath)) {
@@ -144,47 +130,37 @@ function locateDeployerBinary({ binaryPath, version, cwd }) {
                 throw new Error(`Deployer binary "${binaryPath}" does not exist.`);
             }
         }
-        for (const c of [
-            (0, path_1.join)(cwd, "vendor/bin/deployer.phar"),
-            (0, path_1.join)(cwd, "vendor/bin/dep"),
-            (0, path_1.join)(cwd, "deployer.phar")
-        ]) {
-            if ((0, node_fs_1.existsSync)(c)) {
-                console.log(`Using "${c}".`);
-                return c;
-            }
+        const localBinary = [
+            "vendor/bin/deployer.phar",
+            "vendor/bin/dep",
+            "deployer.phar"
+        ]
+            .map(b => (0, path_1.join)(cwd, b))
+            .find(b => (0, node_fs_1.existsSync)(b));
+        if (localBinary) {
+            console.log(`Using "${localBinary}".`);
+            return localBinary;
         }
         const composerPath = (0, path_1.join)(cwd, "composer.lock");
         if (version === "" && (0, node_fs_1.existsSync)(composerPath)) {
             const lock = JSON.parse((0, node_fs_1.readFileSync)(composerPath, "utf8"));
-            version = findDeployerVersionInComposerLock(lock);
+            version = (_a = findDeployerVersionInComposerLock(lock)) !== null && _a !== void 0 ? _a : "";
         }
-        if (version === "" || typeof version === "undefined") {
+        if (version === "") {
             throw new Error("Deployer binary not found. Please specify deployer-binary or deployer-version.");
         }
-        const dep = yield downloadBinary(version.replace(/^v/, ""), (0, path_1.join)(cwd, "deployer.phar"));
-        yield exec.exec("chmod", ["+x", "deployer.phar"], {
-            failOnStdErr: true,
-            cwd: cwd
+        const pharPath = (0, path_1.join)(cwd, "deployer.phar");
+        const dep = yield downloadBinary(version.replace(/^v/, ""), pharPath);
+        yield exec.exec("chmod", ["+x", pharPath], {
+            failOnStdErr: true
         });
         return dep;
     });
 }
-function findDeployerVersionInComposerLock(lock) {
-    var _a, _b;
-    let version;
-    const packageName = "deployer/deployer";
-    const findPackage = (lockFile, section) => {
-        var _a;
-        return lockFile[section]
-            ? (_a = lockFile[section]) === null || _a === void 0 ? void 0 : _a.find(p => p.name === packageName)
-            : undefined;
-    };
-    version = (_a = findPackage(lock, "packages")) === null || _a === void 0 ? void 0 : _a.version;
-    if (version === "" || typeof version === "undefined") {
-        version = (_b = findPackage(lock, "packages-dev")) === null || _b === void 0 ? void 0 : _b.version;
-    }
-    return version;
+exports.locateBinary = locateBinary;
+function findDeployerVersionInComposerLock({ package: pkg, [`package-dev`]: pkgDev }) {
+    var _a;
+    return (_a = [...pkg, ...pkgDev].find(p => (p === null || p === void 0 ? void 0 : p.name) === "deployer/deployer")) === null || _a === void 0 ? void 0 : _a.version;
 }
 
 
@@ -236,25 +212,29 @@ const ssh_1 = __nccwpck_require__(18);
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            yield (0, ssh_1.setupSsh)({
-                privateKey: core.getInput(constants_js_1.Inputs.SshPrivateKey),
-                sshConfig: core.getInput(constants_js_1.Inputs.SshConfig),
-                skipSetup: core.getBooleanInput(constants_js_1.Inputs.SshSkipSetup),
-                knownHosts: core.getInput(constants_js_1.Inputs.SshKnownHosts)
-            });
-            yield (0, deployer_js_1.runDeployer)({
+            if (!core.getBooleanInput(constants_js_1.Inputs.SshSkipSetup)) {
+                yield (0, ssh_1.setup)({
+                    privateKey: core.getInput(constants_js_1.Inputs.SshPrivateKey),
+                    sshConfig: core.getInput(constants_js_1.Inputs.SshConfig),
+                    knownHosts: core.getInput(constants_js_1.Inputs.SshKnownHosts)
+                });
+            }
+            const cwd = resolveCwd(core.getInput(constants_js_1.Inputs.SubDirectory, {
+                trimWhitespace: true
+            }));
+            const binary = yield (0, deployer_js_1.locateBinary)({
                 binaryPath: core.getInput(constants_js_1.Inputs.DeployerBinary),
                 version: core.getInput(constants_js_1.Inputs.DeployerVersion),
+                cwd
+            });
+            yield (0, deployer_js_1.run)(binary, {
                 command: core
                     .getInput(constants_js_1.Inputs.DeployerCommand, { required: true })
                     .split(" "),
                 ansiOutput: core.getBooleanInput(constants_js_1.Inputs.DeployerAnsiOutput),
                 verbosity: core.getInput(constants_js_1.Inputs.DeployerVerbosity),
-                options: parseOptions(core.getInput(constants_js_1.Inputs.DeployerOptions)),
-                cwd: resolveCwd(core.getInput(constants_js_1.Inputs.SubDirectory, {
-                    trimWhitespace: true
-                }))
-            });
+                options: parseOptions(core.getInput(constants_js_1.Inputs.DeployerOptions))
+            }, cwd);
         }
         catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -317,15 +297,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.setupSsh = void 0;
+exports.setup = void 0;
 const node_fs_1 = __nccwpck_require__(7561);
 const core = __importStar(__nccwpck_require__(2186));
 const exec = __importStar(__nccwpck_require__(1514));
-function setupSsh({ privateKey, knownHosts, skipSetup, sshConfig }) {
+function setup({ privateKey, knownHosts, sshConfig }) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (skipSetup) {
-            return;
-        }
         const sshHomeDir = `${process.env["HOME"]}/.ssh`;
         if (!(0, node_fs_1.existsSync)(sshHomeDir)) {
             (0, node_fs_1.mkdirSync)(sshHomeDir, { recursive: true });
@@ -352,7 +329,7 @@ function setupSsh({ privateKey, knownHosts, skipSetup, sshConfig }) {
         }
     });
 }
-exports.setupSsh = setupSsh;
+exports.setup = setup;
 
 
 /***/ }),

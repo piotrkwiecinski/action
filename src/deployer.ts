@@ -9,32 +9,21 @@ interface Options {
     [key: string]: string;
 }
 
-interface BaseOptions {
+interface DeployerArguments {
     command: string[];
     ansiOutput: boolean;
     options: Options;
     verbosity: string;
 }
 
-interface CommandOptions extends BaseOptions {
-    binary: string;
-}
-
-interface DeployerOptions extends BaseOptions {
-    cwd: string;
-    binaryPath: string;
-    version: string;
-}
-
-export async function runDeployer({ cwd, ...options }: DeployerOptions) {
-    const binary = await locateDeployerBinary({
-        binaryPath: options.binaryPath,
-        version: options.version,
-        cwd
-    });
-    const command = getCommand({ binary, ...options });
+export async function run(
+    binary: string,
+    options: DeployerArguments,
+    cwd: string
+) {
+    const command = prepareCommand(options);
     try {
-        await exec.exec("php", command, {
+        await exec.exec("php", [binary, ...command], {
             failOnStdErr: true,
             cwd: cwd
         });
@@ -43,16 +32,16 @@ export async function runDeployer({ cwd, ...options }: DeployerOptions) {
     }
 }
 
-function getCommand(options: CommandOptions): string[] {
-    const depOptions = Object.entries(options.options).flatMap(
-        ([key, value]) => ["-o", `${key}=>${value}`]
-    );
+function prepareCommand(args: DeployerArguments): string[] {
+    const depOptions = Object.entries(args.options).flatMap(([key, value]) => [
+        "-o",
+        `${key}=>${value}`
+    ]);
     return [
-        options.binary,
-        ...options.command,
+        ...args.command,
         "--no-interaction",
-        options.ansiOutput ? "--ansi" : "--no-ansi",
-        options.verbosity,
+        args.ansiOutput ? "--ansi" : "--no-ansi",
+        args.verbosity,
         ...depOptions
     ];
 }
@@ -70,17 +59,17 @@ async function fetchDeployerVersionsFromManifest(): Promise<
     const httpClient = new HttpClient("", [], {
         allowRedirects: true
     });
-    const response = await httpClient.getJson<Array<DeployerManifestEntry>>(
+
+    const { result } = await httpClient.getJson<Array<DeployerManifestEntry>>(
         "https://deployer.org/manifest.json"
     );
 
-    return response.result;
+    return result;
 }
 
 async function downloadBinary(version: string, dest?: string): Promise<string> {
     const response = await fetchDeployerVersionsFromManifest();
-    const asset = response?.find(e => e.version === version);
-    const url = asset?.url;
+    const url = response?.find(e => e.version === version)?.url;
     if (typeof url === "undefined") {
         throw new Error(
             `The version "${version}"does not exist in the "" file."`
@@ -98,7 +87,7 @@ interface DeployerBinaryLocatorOptions {
     cwd: string;
 }
 
-async function locateDeployerBinary({
+export async function locateBinary({
     binaryPath,
     version,
     cwd
@@ -110,55 +99,54 @@ async function locateDeployerBinary({
             throw new Error(`Deployer binary "${binaryPath}" does not exist.`);
         }
     }
-
-    for (const c of [
-        joinPath(cwd, "vendor/bin/deployer.phar"),
-        joinPath(cwd, "vendor/bin/dep"),
-        joinPath(cwd, "deployer.phar")
-    ]) {
-        if (existsSync(c)) {
-            console.log(`Using "${c}".`);
-            return c;
-        }
+    const localBinary = [
+        "vendor/bin/deployer.phar",
+        "vendor/bin/dep",
+        "deployer.phar"
+    ]
+        .map(b => joinPath(cwd, b))
+        .find(b => existsSync(b));
+    if (localBinary) {
+        console.log(`Using "${localBinary}".`);
+        return localBinary;
     }
 
     const composerPath = joinPath(cwd, "composer.lock");
     if (version === "" && existsSync(composerPath)) {
         const lock = JSON.parse(readFileSync(composerPath, "utf8"));
-        version = findDeployerVersionInComposerLock(lock);
+        version = findDeployerVersionInComposerLock(lock) ?? "";
     }
 
-    if (version === "" || typeof version === "undefined") {
+    if (version === "") {
         throw new Error(
             "Deployer binary not found. Please specify deployer-binary or deployer-version."
         );
     }
 
-    const dep = await downloadBinary(
-        version.replace(/^v/, ""),
-        joinPath(cwd, "deployer.phar")
-    );
+    const pharPath = joinPath(cwd, "deployer.phar");
+    const dep = await downloadBinary(version.replace(/^v/, ""), pharPath);
 
-    await exec.exec("chmod", ["+x", "deployer.phar"], {
-        failOnStdErr: true,
-        cwd: cwd
+    await exec.exec("chmod", ["+x", pharPath], {
+        failOnStdErr: true
     });
 
     return dep;
 }
 
-function findDeployerVersionInComposerLock(lock: object) {
-    let version;
-    const packageName = "deployer/deployer";
-    const findPackage = (lockFile: object, section: string) =>
-        lockFile[section]
-            ? lockFile[section]?.find(p => p.name === packageName)
-            : undefined;
-    version = findPackage(lock, "packages")?.version;
+interface PartialComposerPackage {
+    name: string;
+    version: string;
+}
 
-    if (version === "" || typeof version === "undefined") {
-        version = findPackage(lock, "packages-dev")?.version;
-    }
+interface PartialComposerLock {
+    package: Array<PartialComposerPackage>;
+    "package-dev": Array<PartialComposerPackage>;
+}
 
-    return version;
+function findDeployerVersionInComposerLock({
+    package: pkg,
+    [`package-dev`]: pkgDev
+}: PartialComposerLock) {
+    return [...pkg, ...pkgDev].find(p => p?.name === "deployer/deployer")
+        ?.version;
 }

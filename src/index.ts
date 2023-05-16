@@ -3,33 +3,43 @@ import { resolve as resolvePath } from "node:path";
 import * as core from "@actions/core";
 
 import { Inputs } from "./constants.js";
-import { runDeployer } from "./deployer.js";
-import { setupSsh } from "./ssh";
+import { locateBinary, run } from "./deployer.js";
+import { setup } from "./ssh";
 
 async function main(): Promise<void> {
     try {
-        await setupSsh({
-            privateKey: core.getInput(Inputs.SshPrivateKey),
-            sshConfig: core.getInput(Inputs.SshConfig),
-            skipSetup: core.getBooleanInput(Inputs.SshSkipSetup),
-            knownHosts: core.getInput(Inputs.SshKnownHosts)
-        });
+        if (!core.getBooleanInput(Inputs.SshSkipSetup)) {
+            await setup({
+                privateKey: core.getInput(Inputs.SshPrivateKey),
+                sshConfig: core.getInput(Inputs.SshConfig),
+                knownHosts: core.getInput(Inputs.SshKnownHosts)
+            });
+        }
 
-        await runDeployer({
+        const cwd = resolveCwd(
+            core.getInput(Inputs.SubDirectory, {
+                trimWhitespace: true
+            })
+        );
+
+        const binary = await locateBinary({
             binaryPath: core.getInput(Inputs.DeployerBinary),
             version: core.getInput(Inputs.DeployerVersion),
-            command: core
-                .getInput(Inputs.DeployerCommand, { required: true })
-                .split(" "),
-            ansiOutput: core.getBooleanInput(Inputs.DeployerAnsiOutput),
-            verbosity: core.getInput(Inputs.DeployerVerbosity),
-            options: parseOptions(core.getInput(Inputs.DeployerOptions)),
-            cwd: resolveCwd(
-                core.getInput(Inputs.SubDirectory, {
-                    trimWhitespace: true
-                })
-            )
+            cwd
         });
+
+        await run(
+            binary,
+            {
+                command: core
+                    .getInput(Inputs.DeployerCommand, { required: true })
+                    .split(" "),
+                ansiOutput: core.getBooleanInput(Inputs.DeployerAnsiOutput),
+                verbosity: core.getInput(Inputs.DeployerVerbosity),
+                options: parseOptions(core.getInput(Inputs.DeployerOptions))
+            },
+            cwd
+        );
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         core.setFailed(message);

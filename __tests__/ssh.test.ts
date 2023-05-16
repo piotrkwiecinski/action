@@ -12,7 +12,7 @@ import {
 } from "@jest/globals";
 import * as fs from "fs";
 
-import { setupSsh } from "../src/ssh";
+import { setup } from "../src/ssh";
 
 const tempPath = path.join(__dirname, "TEMP");
 
@@ -43,14 +43,14 @@ describe("ssh setup", function () {
     });
 
     it("should create ssh dir if doesn't exist", async () => {
-        await setupSsh(defaultOptions);
+        await setup(defaultOptions);
         expect(fs.existsSync(path.join(tempPath, ".ssh"))).toBeTruthy();
     });
 
     it("should bind ssh agent to a socket", async () => {
         const execFunc = jest.spyOn(exec, "exec");
         const exportVariable = jest.spyOn(core, "exportVariable");
-        await setupSsh(defaultOptions);
+        await setup(defaultOptions);
 
         expect(execFunc).toBeCalledWith("ssh-agent", [
             "-a",
@@ -67,12 +67,12 @@ describe("ssh setup", function () {
             privateKey: "test"
         });
         const execFunc = jest.spyOn(exec, "exec");
-        await setupSsh(options);
+        await setup(options);
         expect(execFunc).toHaveBeenLastCalledWith('echo "test\n" | ssh-add -');
     });
 
     it("should set strict host key check to no when known hosts are not provided", async () => {
-        await setupSsh(defaultOptions);
+        await setup(defaultOptions);
         const configPath = path.join(tempPath, ".ssh/config");
         expect(fs.existsSync(configPath)).toBeTruthy();
         expect(fs.statSync(configPath).mode & 0o600).toBe(0o600);
@@ -91,7 +91,7 @@ Host *
   TCPKeepAlive yes                       
 `
         });
-        await setupSsh(options);
+        await setup(options);
         const configPath = path.join(tempPath, ".ssh/config");
         expect(fs.existsSync(configPath)).toBeTruthy();
         expect(fs.statSync(configPath).mode & 0o600).toBe(0o600);
@@ -105,20 +105,9 @@ github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+V
         const options = Object.assign({}, defaultOptions, {
             knownHosts: knownHosts
         });
-        await setupSsh(options);
+        await setup(options);
         const knownHostsPath = path.join(tempPath, ".ssh/known_hosts");
         expect(fs.existsSync(knownHostsPath)).toBeTruthy();
         expect(fs.readFileSync(knownHostsPath, "utf8")).toContain(knownHosts);
-    });
-
-    it("should skip when flag is set", async () => {
-        const execFunc = jest.spyOn(exec, "exec");
-        const options = Object.assign({}, defaultOptions, {
-            skipSetup: true
-        });
-
-        await setupSsh(options);
-
-        expect(execFunc).not.toBeCalled();
     });
 });
